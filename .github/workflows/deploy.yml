@@ -1,0 +1,103 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
+        working-directory: kbase_bot
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.17"
+          otp-version: "27"
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            kbase_bot/deps
+            kbase_bot/_build
+          key: ${{ runner.os }}-mix-${{ hashFiles('kbase_bot/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install deps
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --only prod
+
+      - name: Build release
+        env:
+          MIX_ENV: prod
+        run: mix release
+
+      - name: Package release
+        run: tar -czf /tmp/kbase_bot.tar.gz -C _build/prod/rel/kbase_bot .
+
+      - name: Deploy to VM
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          VM_IP: ${{ secrets.VM_IP }}
+          BOT_ENV: ${{ secrets.BOT_ENV }}
+          VM_USER: ${{ secrets.VM_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan $VM_IP >> ~/.ssh/known_hosts 2>/dev/null
+
+          SSH="ssh -i ~/.ssh/deploy_key $VM_USER@$VM_IP"
+          SCP="scp -i ~/.ssh/deploy_key"
+
+          # Upload release tarball
+          $SCP /tmp/kbase_bot.tar.gz $VM_USER@$VM_IP:~/kbase_bot.tar.gz
+
+          # Write .env to VM
+          echo "$BOT_ENV" | $SSH 'cat > ~/personal/kbase_bot/.env && chmod 600 ~/personal/kbase_bot/.env'
+
+          # Run deploy script on VM
+          $SSH 'bash -s' << 'DEPLOY'
+            set -euo pipefail
+            cd ~/personal/kbase_bot
+
+            # 1. Stop running bot (ignore if not running)
+            ./release/bin/kbase_bot stop 2>/dev/null || true
+            sleep 2
+
+            # 2. Update repo (knowledge base content + scripts)
+            cd ~/personal
+            git pull --ff-only
+            cd ~/personal/kbase_bot
+
+            # 3. Re-decrypt vault files
+            AGE_KEY_FILE=~/.age/personal.key bash ~/personal/scripts/decrypt.sh
+
+            # 4. Backup previous release for rollback
+            if [ -d release ]; then
+              tar -czf ~/kbase_bot.prev.tar.gz -C release .
+            fi
+
+            # 5. Unpack new release
+            rm -rf release
+            mkdir release
+            tar -xzf ~/kbase_bot.tar.gz -C release
+            rm ~/kbase_bot.tar.gz
+
+            # 6. Start the bot (env loaded via rel/env.sh.eex)
+            release/bin/kbase_bot daemon
+
+            # 7. Verify it started
+            sleep 3
+            release/bin/kbase_bot pid && echo "Deploy OK: bot is running" || echo "WARNING: bot may not have started"
+          DEPLOY

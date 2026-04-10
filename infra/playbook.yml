@@ -1,0 +1,158 @@
+---
+- name: Provision VM for KbaseBot
+  hosts: kbase
+  become: true
+
+  vars:
+    app_user: root
+    app_dir: /root/personal
+    bot_dir: /root/personal/kbase_bot
+    repo_url: "{{ lookup('env', 'REPO_URL') | default('git@github.com:OWNER/personal.git', true) }}"
+    deploy_key_src: "{{ lookup('env', 'HOME') }}/.ssh/kbase_deploy"
+
+  tasks:
+    # --- Wait for cloud-init ---
+    - name: Wait for cloud-init to finish
+      command: cloud-init status --wait
+      changed_when: false
+
+    # --- Swap (prevent OOM on 1GB VM) ---
+    - name: Create swapfile
+      command: fallocate -l 512M /swapfile
+      args:
+        creates: /swapfile
+
+    - name: Set swap permissions
+      file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Format swap
+      command: mkswap /swapfile
+      register: mkswap_result
+      changed_when: mkswap_result.rc == 0
+      failed_when: false
+
+    - name: Enable swap
+      command: swapon /swapfile
+      register: swapon_result
+      changed_when: swapon_result.rc == 0
+      failed_when: false
+
+    - name: Persist swap in fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "/swapfile swap swap defaults 0 0"
+        state: present
+
+    # --- Install Nix ---
+    - name: Check if nix is installed
+      stat:
+        path: /nix/var/nix/profiles/default/bin/nix
+      register: nix_binary
+
+    - name: Install Nix
+      become_user: "{{ app_user }}"
+      shell: |
+        curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
+      when: not nix_binary.stat.exists
+
+    # --- Deploy key for GitHub ---
+    - name: Create .ssh directory
+      become_user: "{{ app_user }}"
+      file:
+        path: /root/.ssh
+        state: directory
+        mode: "0700"
+
+    - name: Copy deploy key
+      become_user: "{{ app_user }}"
+      copy:
+        src: "{{ deploy_key_src }}"
+        dest: /root/.ssh/id_ed25519
+        mode: "0600"
+
+    - name: Copy deploy key (pub)
+      become_user: "{{ app_user }}"
+      copy:
+        src: "{{ deploy_key_src }}.pub"
+        dest: /root/.ssh/id_ed25519.pub
+        mode: "0644"
+
+    - name: Add deploy key to authorized_keys
+      become_user: "{{ app_user }}"
+      authorized_key:
+        user: "{{ app_user }}"
+        key: "{{ lookup('file', deploy_key_src + '.pub') }}"
+        state: present
+
+    - name: Add GitHub to known hosts
+      become_user: "{{ app_user }}"
+      shell: ssh-keyscan github.com >> /root/.ssh/known_hosts
+      args:
+        creates: /root/.ssh/known_hosts
+
+    # --- Clone repo ---
+    - name: Clone personal repo
+      become_user: "{{ app_user }}"
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: master
+        accept_hostkey: true
+
+    - name: Pull latest
+      become_user: "{{ app_user }}"
+      command: git pull
+      args:
+        chdir: "{{ app_dir }}"
+      changed_when: false
+
+    # --- Age key + decrypt ---
+    - name: Create .age directory
+      become_user: "{{ app_user }}"
+      file:
+        path: /root/.age
+        state: directory
+        mode: "0700"
+
+    - name: Copy age private key
+      become_user: "{{ app_user }}"
+      copy:
+        src: "{{ lookup('env', 'HOME') }}/.age/personal.key"
+        dest: /root/.age/personal.key
+        mode: "0600"
+
+    - name: Install age
+      apt:
+        name: age
+        state: present
+
+    - name: Check Node.js version
+      shell: node --version 2>/dev/null || echo "v0"
+      register: node_version
+      changed_when: false
+
+    - name: Add NodeSource repo for Node 22
+      shell: curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      when: "not node_version.stdout.startswith('v22')"
+
+    - name: Install Node.js 22
+      apt:
+        name: nodejs
+        state: latest
+      when: "not node_version.stdout.startswith('v22')"
+
+    - name: Decrypt knowledge base
+      become_user: "{{ app_user }}"
+      shell: AGE_KEY_FILE=/root/.age/personal.key bash scripts/decrypt.sh
+      args:
+        chdir: "{{ app_dir }}"
+      changed_when: false
+
+    # --- Install QMD (needed by bot at runtime) ---
+    - name: Install QMD via npm
+      become_user: "{{ app_user }}"
+      command: npm install @tobilu/qmd
+      args:
+        chdir: "{{ bot_dir }}"

@@ -1,0 +1,22 @@
+# Knowledge base plaintext (only .vault/ is tracked)
+knowledge_base/**/*.md
+
+# Age private key
+.age/
+*.key
+
+# Env
+.env
+
+# Nix
+.direnv/
+result
+
+# Terraform
+infra/.terraform/
+infra/terraform.tfstate*
+infra/.terraform.lock.hcl
+infra/*.tfvars
+
+# OS
+.DS_Store

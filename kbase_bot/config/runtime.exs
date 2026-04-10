@@ -1,0 +1,14 @@
+import Config
+
+config :kbase_bot,
+  telegram_bot_token: System.fetch_env!("TELEGRAM_BOT_TOKEN"),
+  telegram_chat_id: System.fetch_env!("TELEGRAM_CHAT_ID") |> String.to_integer(),
+  anthropic_api_key: System.fetch_env!("ANTHROPIC_API_KEY"),
+  repo_path: System.get_env("REPO_PATH", "./knowledge_base"),
+  auto_commit: System.get_env("AUTO_COMMIT", "true") == "true",
+  scheduler_poll_interval_ms: System.get_env("SCHEDULER_POLL_MS", "15000") |> String.to_integer(),
+  giphy_api_key: System.get_env("GIPHY_API_KEY"),
+  qmd_path: System.get_env("QMD_PATH", "qmd"),
+  qmd_enabled: System.get_env("QMD_ENABLED", "true") == "true"
+
+config :ex_gram, token: System.fetch_env!("TELEGRAM_BOT_TOKEN")

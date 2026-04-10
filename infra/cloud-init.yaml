@@ -1,0 +1,49 @@
+#cloud-config
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - sqlite3
+
+runcmd:
+  # Install Nix (as ubuntu user)
+  - su - ubuntu -c 'curl --proto "=https" --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm'
+
+  # Create directories
+  - su - ubuntu -c 'mkdir -p ~/.age ~/.oci'
+
+  # The following secrets need to be copied manually after provisioning:
+  #   scp ~/.age/personal.key ubuntu@<ip>:~/.age/
+  #   scp kbase_bot/.env ubuntu@<ip>:~/personal/kbase_bot/.env
+  #
+  # Then start the bot:
+  #   ssh ubuntu@<ip>
+  #   cd ~/personal && direnv allow
+  #   cd kbase_bot && nix develop --command bash -c 'export $(grep -v "^#" .env | xargs) && mix deps.get && mix run --no-halt'
+  #
+  # Or enable the systemd service (created below)
+
+  # Create systemd service for the bot
+  - |
+    cat > /etc/systemd/system/kbase-bot.service << 'EOF'
+    [Unit]
+    Description=KbaseBot Telegram Bot
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=simple
+    User=ubuntu
+    WorkingDirectory=/home/ubuntu/personal/kbase_bot
+    EnvironmentFile=/home/ubuntu/personal/kbase_bot/.env
+    ExecStart=/home/ubuntu/.nix-profile/bin/nix develop --command mix run --no-halt
+    Restart=always
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+  - systemctl daemon-reload
