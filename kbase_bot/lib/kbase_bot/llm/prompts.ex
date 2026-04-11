@@ -29,7 +29,17 @@ defmodule KbaseBot.LLM.Prompts do
     @briefing_prompt ""
   end
 
-  def manager, do: @manager_prompt
+  def manager do
+    case File.read(claude_md_path()) do
+      {:ok, content} -> @manager_prompt <> "\n\n## Project Context\n\n" <> content
+      {:error, _} -> @manager_prompt
+    end
+  end
+
+  defp claude_md_path do
+    repo_path = Application.get_env(:kbase_bot, :repo_path, "./knowledge_base")
+    Path.join(Path.dirname(repo_path), "CLAUDE.md")
+  end
 
   def task_execution(user_profile) do
     String.replace(@task_execution_prompt, "{{user_profile}}", user_profile)
