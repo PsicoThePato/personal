@@ -25,7 +25,11 @@ defmodule KbaseBot.Tools.Registry do
     KbaseBot.Tools.SendGif,
     KbaseBot.Tools.RequestTool,
     KbaseBot.Tools.SearchHistory,
-    KbaseBot.Tools.SearchTasks
+    KbaseBot.Tools.SearchTasks,
+    KbaseBot.Tools.CreateTodo,
+    KbaseBot.Tools.ListTodos,
+    KbaseBot.Tools.CompleteTodo,
+    KbaseBot.Tools.DeleteTodo
   ]
 
   @doc """

@@ -11,6 +11,7 @@ config :kbase_bot,
   qmd_path: System.get_env("QMD_PATH", "qmd"),
   qmd_enabled: System.get_env("QMD_ENABLED", "true") == "true",
   voyage_api_key: System.fetch_env!("VOYAGE_API_KEY"),
-  embedding_poll_interval_ms: System.get_env("EMBEDDING_POLL_MS", "60000") |> String.to_integer()
+  embedding_poll_interval_ms: System.get_env("EMBEDDING_POLL_MS", "60000") |> String.to_integer(),
+  todoist_api_key: System.fetch_env!("TODOIST_API_KEY")
 
 config :ex_gram, token: System.fetch_env!("TELEGRAM_BOT_TOKEN")
