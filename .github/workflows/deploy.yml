@@ -29,7 +29,6 @@ jobs:
             kbase_bot/deps
             kbase_bot/_build
           key: ${{ runner.os }}-mix-${{ hashFiles('kbase_bot/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
 
       - name: Install deps
         run: |
