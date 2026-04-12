@@ -59,39 +59,22 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key $VM_USER@$VM_IP"
           SCP="scp -i ~/.ssh/deploy_key"
 
-          # Upload release tarball
           $SCP /tmp/kbase_bot.tar.gz $VM_USER@$VM_IP:~/kbase_bot.tar.gz
-
-          # Write .env to VM
           echo "$BOT_ENV" | $SSH 'cat > ~/personal/kbase_bot/.env && chmod 600 ~/personal/kbase_bot/.env'
 
-          # Run deploy script on VM
           $SSH 'bash -s' << 'DEPLOY'
-            set -euo pipefail
-            cd ~/personal/kbase_bot
+            set -euxo pipefail
 
-            if ./release/bin/kbase_bot pid 2>/dev/null; then
-              echo "Stopping bot..."
-              ./release/bin/kbase_bot stop 2>/dev/null || true
-              for i in $(seq 1 15); do
-                ./release/bin/kbase_bot pid 2>/dev/null || break
-                sleep 1
-              done
-              if ./release/bin/kbase_bot pid 2>/dev/null; then
-                kill -9 $(./release/bin/kbase_bot pid) 2>/dev/null || true
-                sleep 1
-              fi
-            fi
+            cd ~/personal/kbase_bot
+            ./release/bin/kbase_bot stop 2>/dev/null || true
+            sleep 5
 
             cd ~/personal
-            git pull --ff-only
+            git fetch origin
+            git reset --hard origin/master
             cd ~/personal/kbase_bot
 
             AGE_KEY_FILE=~/.age/personal.key bash ~/personal/scripts/decrypt.sh
-
-            if [ -d release ]; then
-              tar -czf ~/kbase_bot.prev.tar.gz -C release .
-            fi
 
             rm -rf release
             mkdir release
@@ -100,12 +83,7 @@ jobs:
 
             source .env
             release/bin/kbase_bot daemon
-
-            sleep 3
-            if ! release/bin/kbase_bot pid 2>/dev/null; then
-              echo "First start failed, retrying..."
-              release/bin/kbase_bot daemon
-              sleep 3
-            fi
-            release/bin/kbase_bot pid && echo "Deploy OK" || echo "DEPLOY FAILED"
+            sleep 5
+            release/bin/kbase_bot pid
+            echo "Deploy OK"
           DEPLOY

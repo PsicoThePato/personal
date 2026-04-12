@@ -56,7 +56,7 @@ defmodule KbaseBot.LLM.Client do
 
   defp cache_last_tool(tools) do
     {last, rest} = List.pop_at(tools, -1)
-    rest ++ [Map.put(last, :cache_control, %{type: "ephemeral"})]
+    rest ++ [Map.put(last, :cache_control, %{type: "ephemeral", ttl: "1h"})]
   end
 
   defp do_request(opts, attempt) when attempt < @max_retries do
