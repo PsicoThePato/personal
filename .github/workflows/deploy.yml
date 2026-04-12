@@ -71,33 +71,42 @@ jobs:
             set -euo pipefail
             cd ~/personal/kbase_bot
 
-            # 1. Stop running bot (ignore if not running)
-            ./release/bin/kbase_bot stop 2>/dev/null || true
-            sleep 2
+            if ./release/bin/kbase_bot pid 2>/dev/null; then
+              echo "Stopping bot..."
+              ./release/bin/kbase_bot stop 2>/dev/null || true
+              for i in $(seq 1 15); do
+                ./release/bin/kbase_bot pid 2>/dev/null || break
+                sleep 1
+              done
+              if ./release/bin/kbase_bot pid 2>/dev/null; then
+                kill -9 $(./release/bin/kbase_bot pid) 2>/dev/null || true
+                sleep 1
+              fi
+            fi
 
-            # 2. Update repo (knowledge base content + scripts)
             cd ~/personal
             git pull --ff-only
             cd ~/personal/kbase_bot
 
-            # 3. Re-decrypt vault files
             AGE_KEY_FILE=~/.age/personal.key bash ~/personal/scripts/decrypt.sh
 
-            # 4. Backup previous release for rollback
             if [ -d release ]; then
               tar -czf ~/kbase_bot.prev.tar.gz -C release .
             fi
 
-            # 5. Unpack new release
             rm -rf release
             mkdir release
             tar -xzf ~/kbase_bot.tar.gz -C release
             rm ~/kbase_bot.tar.gz
 
-            # 6. Start the bot (env loaded via rel/env.sh.eex)
+            source .env
             release/bin/kbase_bot daemon
 
-            # 7. Verify it started
             sleep 3
-            release/bin/kbase_bot pid && echo "Deploy OK: bot is running" || echo "WARNING: bot may not have started"
+            if ! release/bin/kbase_bot pid 2>/dev/null; then
+              echo "First start failed, retrying..."
+              release/bin/kbase_bot daemon
+              sleep 3
+            fi
+            release/bin/kbase_bot pid && echo "Deploy OK" || echo "DEPLOY FAILED"
           DEPLOY
