@@ -9,6 +9,8 @@ config :kbase_bot,
   scheduler_poll_interval_ms: System.get_env("SCHEDULER_POLL_MS", "15000") |> String.to_integer(),
   giphy_api_key: System.get_env("GIPHY_API_KEY"),
   qmd_path: System.get_env("QMD_PATH", "qmd"),
-  qmd_enabled: System.get_env("QMD_ENABLED", "true") == "true"
+  qmd_enabled: System.get_env("QMD_ENABLED", "true") == "true",
+  voyage_api_key: System.fetch_env!("VOYAGE_API_KEY"),
+  embedding_poll_interval_ms: System.get_env("EMBEDDING_POLL_MS", "60000") |> String.to_integer()
 
 config :ex_gram, token: System.fetch_env!("TELEGRAM_BOT_TOKEN")

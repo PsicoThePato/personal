@@ -23,7 +23,9 @@ defmodule KbaseBot.Tools.Registry do
     KbaseBot.Tools.ListFiles,
     KbaseBot.Tools.NotifyUser,
     KbaseBot.Tools.SendGif,
-    KbaseBot.Tools.RequestTool
+    KbaseBot.Tools.RequestTool,
+    KbaseBot.Tools.SearchHistory,
+    KbaseBot.Tools.SearchTasks
   ]
 
   @doc """

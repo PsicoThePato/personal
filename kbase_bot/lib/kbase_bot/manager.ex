@@ -16,6 +16,7 @@ defmodule KbaseBot.Manager do
   alias KbaseBot.Tools.Registry
 
   @max_turns 10
+  @conversation_window 20
 
   defstruct [
     :conversation_messages,
@@ -125,8 +126,9 @@ defmodule KbaseBot.Manager do
     else
       tools = Registry.for_layer(:manager)
       system_prompt = Prompts.manager()
+      window = Enum.take(state.conversation_messages, -@conversation_window)
 
-      case Client.chat(system_prompt, state.conversation_messages, tools: tools) do
+      case Client.chat(system_prompt, window, tools: tools) do
         {:ok, response} ->
           state = append_message(state, %{"role" => "assistant", "content" => response["content"]})
 
@@ -268,6 +270,7 @@ defmodule KbaseBot.Manager do
 
   defp append_message(state, message) do
     messages = state.conversation_messages ++ [message]
+    messages = if length(messages) > 200, do: Enum.take(messages, -200), else: messages
 
     # Persist to SQLite
     content =

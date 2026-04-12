@@ -8,6 +8,7 @@ defmodule KbaseBot.Application do
     children = [
       KbaseBot.Repo.Store,
       KbaseBot.Context.Server,
+      KbaseBot.Memory.Embedder,
       KbaseBot.Ingress,
       KbaseBot.Manager,
       {Elixir.Task.Supervisor, name: KbaseBot.TaskSupervisor},

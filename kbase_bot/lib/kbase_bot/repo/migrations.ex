@@ -4,6 +4,14 @@ defmodule KbaseBot.Repo.Migrations do
     |> Enum.each(fn sql ->
       :ok = Exqlite.Sqlite3.execute(conn, sql)
     end)
+
+    alter_migrations()
+    |> Enum.each(fn sql ->
+      case Exqlite.Sqlite3.execute(conn, sql) do
+        :ok -> :ok
+        {:error, _} -> :ok
+      end
+    end)
   end
 
   defp migrations do
@@ -55,7 +63,26 @@ defmodule KbaseBot.Repo.Migrations do
           message_text TEXT NOT NULL,
           created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
       )
+      """,
       """
+      CREATE TABLE IF NOT EXISTS embeddings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_type TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          embedding BLOB NOT NULL,
+          created_at TEXT NOT NULL
+      )
+      """,
+      """
+      CREATE INDEX IF NOT EXISTS idx_embeddings_source ON embeddings (source_type)
+      """
+    ]
+  end
+
+  defp alter_migrations do
+    [
+      "ALTER TABLE manager_messages ADD COLUMN embedded_at TEXT",
+      "ALTER TABLE tasks ADD COLUMN embedded_at TEXT"
     ]
   end
 end

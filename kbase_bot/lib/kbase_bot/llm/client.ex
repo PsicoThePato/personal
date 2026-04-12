@@ -28,21 +28,35 @@ defmodule KbaseBot.LLM.Client do
     converted_messages = Enum.map(messages, &atomize_keys/1)
     converted_tools = Enum.map(tools, &deep_atomize_keys/1)
 
+    # Use content block format for system prompt to enable caching
+    system_blocks = [
+      %{type: "text", text: system, cache_control: %{type: "ephemeral", ttl: "1h"}}
+    ]
+
     anthropix_opts = [
       model: model,
       max_tokens: max_tokens,
-      system: system,
+      system: system_blocks,
       messages: converted_messages
     ]
 
     anthropix_opts =
       if converted_tools != [] do
-        Keyword.put(anthropix_opts, :tools, converted_tools)
+        # Add cache_control to the last tool to cache the entire tool block
+        cached_tools = cache_last_tool(converted_tools)
+        Keyword.put(anthropix_opts, :tools, cached_tools)
       else
         anthropix_opts
       end
 
     do_request(anthropix_opts, 0)
+  end
+
+  defp cache_last_tool([]), do: []
+
+  defp cache_last_tool(tools) do
+    {last, rest} = List.pop_at(tools, -1)
+    rest ++ [Map.put(last, :cache_control, %{type: "ephemeral"})]
   end
 
   defp do_request(opts, attempt) when attempt < @max_retries do

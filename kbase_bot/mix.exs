@@ -35,7 +35,9 @@ defmodule KbaseBot.MixProject do
       {:anthropix, "~> 0.6"},
       {:exqlite, "~> 0.23"},
       {:tzdata, "~> 1.1"},
-      {:crontab, "~> 1.1"}
+      {:crontab, "~> 1.1"},
+      {:nx, "~> 0.7"},
+      {:req, "~> 0.5"}
     ]
   end
 end
